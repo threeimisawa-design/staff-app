@@ -632,26 +632,6 @@ function initStars() {
   });
 }
 
-// ===== 自動翻訳 =====
-function containsJapanese(text) {
-  return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(text);
-}
-
-async function translateToJapanese(text) {
-  if (!text || !text.trim()) return { translated: text, wasTranslated: false };
-  if (containsJapanese(text)) return { translated: text, wasTranslated: false };
-
-  try {
-    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dt=t&q=' + encodeURIComponent(text);
-    const res = await fetch(url);
-    const data = await res.json();
-    const translated = data[0].map(part => part[0]).join('');
-    return { translated, wasTranslated: true };
-  } catch (e) {
-    return { translated: text, wasTranslated: false };
-  }
-}
-
 async function submitReport() {
   const name = document.getElementById('r-name').value;
   const date = document.getElementById('r-date').value;
@@ -661,34 +641,18 @@ async function submitReport() {
 
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> 翻訳・送信中...';
+  btn.innerHTML = '<span class="spinner"></span> 送信中...';
 
   try {
-    const nextRaw = document.getElementById('r-next').value.trim();
-    const issueRaw = document.getElementById('r-issue').value.trim();
-    const commentRaw = document.getElementById('r-comment').value.trim();
-
-    const [workT, nextT, issueT, commentT] = await Promise.all([
-      translateToJapanese(work),
-      translateToJapanese(nextRaw),
-      translateToJapanese(issueRaw),
-      translateToJapanese(commentRaw)
-    ]);
-
-    await api({
-      action: 'saveReport', date, name,
-      work: workT.translated,
-      workOrig: workT.wasTranslated ? work : '',
+    const res = await api({
+      action: 'saveReport', date, name, work,
       interview: document.getElementById('r-interview').value || 0,
       factory: document.getElementById('r-factory').value || 0,
       joined: document.getElementById('r-joined').value || 0,
-      next: nextT.translated,
-      nextOrig: nextT.wasTranslated ? nextRaw : '',
+      next: document.getElementById('r-next').value.trim(),
       star: starVal || 3,
-      issue: issueT.translated,
-      issueOrig: issueT.wasTranslated ? issueRaw : '',
-      comment: commentT.translated,
-      commentOrig: commentT.wasTranslated ? commentRaw : ''
+      issue: document.getElementById('r-issue').value.trim(),
+      comment: document.getElementById('r-comment').value.trim()
     });
 
     ['r-work','r-next','r-issue','r-comment','r-interview','r-factory','r-joined'].forEach(id => {
@@ -696,8 +660,7 @@ async function submitReport() {
     });
     starVal = 0;
     document.querySelectorAll('.star').forEach(x => x.classList.remove('on'));
-    const anyTranslated = workT.wasTranslated || nextT.wasTranslated || issueT.wasTranslated || commentT.wasTranslated;
-    showToast(anyTranslated ? '✓ 翻訳して送信しました！' : '✓ 日報を送信しました！');
+    showToast(res.translated ? '✓ 翻訳して送信しました！' : '✓ 日報を送信しました！');
     if (dateKey(selectedDate) === date) await loadDayData();
   } catch(e) {
     alert('送信に失敗しました。URLを確認してください。');
