@@ -319,7 +319,7 @@ textarea { resize: none; line-height: 1.5; }
   <div id="admin-reports"><div class="loading"><span class="spinner"></span>読み込み中...</div></div>
 
   <div style="display:flex;gap:8px;margin-top:4px">
-    <button class="btn btn-outline" style="flex:1" onclick="exportCSV()"><i class="ti ti-download"></i> CSV出力</button>
+    <button class="btn btn-outline" style="flex:1" onclick="exportCSV()"><i class="ti ti-download"></i> CSV出力（全期間）</button>
     <button class="btn btn-outline" style="flex:1" onclick="sendReminder()"><i class="ti ti-bell"></i> 未提出にリマインド</button>
   </div>
 </div>
@@ -589,8 +589,8 @@ function renderMemberList() {
 
   document.getElementById('member-list').innerHTML = MEMBERS.map(name => {
     const r = reportMap[name];
-    const status = r ? (+r['達成度'] >= 4 ? 'done' : 'wip') : 'none';
-    const label = r ? (+r['達成度'] >= 4 ? '完了' : '作業中') : '未提出';
+    const status = r ? 'done' : 'none';
+    const label = r ? '提出済' : '未提出';
     const task = r ? (r['作業内容']||'').slice(0,28) + ((r['作業内容']||'').length>28?'…':'') : '日報未提出';
     const c = avatarColor(name);
     return `<div class="member-row">
@@ -718,7 +718,7 @@ function renderAdminReports() {
           <div class="avatar" style="background:${c}22;color:${c}">${initials(name)}</div>
           <div style="flex:1"><div style="font-weight:600;font-size:13px">${name}</div><div style="font-size:11px;color:var(--gray-400)">${r['提出時間']||''} 提出</div></div>
           ${hasOrig ? '<span class="badge" style="background:var(--primary-light);color:var(--primary);margin-right:4px"><i class="ti ti-language" style="font-size:12px"></i> 翻訳済み</span>' : ''}
-          <span class="badge ${star>=4?'badge-done':'badge-wip'}">${star>=4?'完了':'作業中'}</span>
+          <span class="badge badge-done">提出済</span>
         </div>
         <div class="report-body"><dl>
           <dt>作業内容</dt><dd>${r['作業内容']||''}${r['元の作業内容'] ? `<br><span style="color:var(--gray-400);font-size:11px">原文：${r['元の作業内容']}</span>` : ''}</dd>
@@ -760,21 +760,34 @@ function sendReminder() {
   showToast(`未提出 ${pending.length}名: ${pending.join('、')}`);
 }
 
-function exportCSV() {
-  const day = currentReports;
-  const header = '氏名,日付,作業内容,面接人数,工場見学人数,入社人数,達成度,明日の予定,課題,コメント,提出時間';
-  const rows = day.map(r => [
-    r['氏名'], r['日付'], `"${r['作業内容']||''}"`,
-    r['面接人数']||0, r['工場見学人数']||0, r['入社人数']||0,
-    r['達成度']||'', `"${r['明日の予定']||''}"`, `"${r['課題']||''}"`, `"${r['コメント']||''}"`, r['提出時間']||''
-  ].join(','));
-  const csv = [header, ...rows].join('\n');
-  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `日報_${dateKey(today)}.csv`;
-  a.click();
-  showToast('CSVをダウンロードしました');
+async function exportCSV() {
+  showToast('CSVを準備中...');
+  try {
+    const res = await api({ action: 'getAllReports' });
+    const allReports = res.data || [];
+    if (allReports.length === 0) {
+      showToast('出力できる日報がありません');
+      return;
+    }
+    const header = '氏名,日付,作業内容,面接人数,工場見学人数,入社人数,達成度,明日の予定,課題,コメント,提出時間';
+    const rows = allReports.map(r => [
+      r['氏名'], r['日付'], `"${(r['作業内容']||'').replace(/"/g,'""')}"`,
+      r['面接人数']||0, r['工場見学人数']||0, r['入社人数']||0,
+      r['達成度']||'', `"${(r['明日の予定']||'').replace(/"/g,'""')}"`,
+      `"${(r['課題']||'').replace(/"/g,'""')}"`, `"${(r['コメント']||'').replace(/"/g,'""')}"`, r['提出時間']||''
+    ].join(','));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    const firstDate = allReports[0]['日付'];
+    const lastDate = allReports[allReports.length-1]['日付'];
+    a.href = URL.createObjectURL(blob);
+    a.download = `日報_全期間_${firstDate}_${lastDate}.csv`;
+    a.click();
+    showToast(`✓ 全${allReports.length}件をダウンロードしました`);
+  } catch(e) {
+    showToast('CSV出力に失敗しました');
+  }
 }
 
 // ===== ページ切替 =====
