@@ -613,11 +613,11 @@ async function addSchedule() {
   if (!name || !task) { alert('担当者と予定内容を入力してください'); return; }
 
   const key = dateKey(selectedDate);
-  await api({ action: 'saveSchedule', date: key, name, start, end, task });
+  const res = await api({ action: 'saveSchedule', date: key, name, start, end, task });
   closeModal();
   await loadDayData();
   renderCalendar();
-  showToast('予定を追加しました');
+  showToast(res.translated ? '✓ 翻訳して予定を追加しました' : '予定を追加しました');
   document.getElementById('s-name').value = '';
   document.getElementById('s-task').value = '';
 }
