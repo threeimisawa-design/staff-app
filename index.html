@@ -364,7 +364,7 @@ textarea { resize: none; line-height: 1.5; }
       <label>予定内容</label>
       <input type="text" id="s-task" placeholder="例：A社 工場見学案内">
     </div>
-    <button class="btn btn-primary" onclick="addSchedule()"><i class="ti ti-check"></i> 追加する</button>
+    <button class="btn btn-primary" onclick="addSchedule()" id="add-schedule-btn"><i class="ti ti-check"></i> 追加する</button>
   </div>
 </div>
 
@@ -603,21 +603,37 @@ function renderMemberList() {
 function openScheduleModal() { document.getElementById('modal').classList.add('show'); }
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
 
+let isSubmittingSchedule = false;
+
 async function addSchedule() {
+  if (isSubmittingSchedule) return; // 二重送信防止
   const name = document.getElementById('s-name').value;
   const start = document.getElementById('s-start').value;
   const end = document.getElementById('s-end').value;
   const task = document.getElementById('s-task').value.trim();
   if (!name || !task) { alert('担当者と予定内容を入力してください'); return; }
 
-  const key = dateKey(selectedDate);
-  const res = await api({ action: 'saveSchedule', date: key, name, start, end, task });
-  closeModal();
-  await loadDayData();
-  renderCalendar();
-  showToast(res.translated ? '✓ 翻訳して予定を追加しました' : '予定を追加しました');
-  document.getElementById('s-name').value = '';
-  document.getElementById('s-task').value = '';
+  isSubmittingSchedule = true;
+  const btn = document.getElementById('add-schedule-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 追加中...';
+
+  try {
+    const key = dateKey(selectedDate);
+    const res = await api({ action: 'saveSchedule', date: key, name, start, end, task });
+    closeModal();
+    await loadDayData();
+    renderCalendar();
+    showToast(res.translated ? '✓ 翻訳して予定を追加しました' : '予定を追加しました');
+    document.getElementById('s-name').value = '';
+    document.getElementById('s-task').value = '';
+  } catch(e) {
+    alert('予定の追加に失敗しました。もう一度お試しください。');
+  } finally {
+    isSubmittingSchedule = false;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i> 追加する';
+  }
 }
 
 // ===== 日報送信 =====
@@ -630,13 +646,17 @@ function initStars() {
   });
 }
 
+let isSubmittingReport = false;
+
 async function submitReport() {
+  if (isSubmittingReport) return; // 二重送信防止
   const name = document.getElementById('r-name').value;
   const date = document.getElementById('r-date').value;
   const work = document.getElementById('r-work').value.trim();
   if (!name) { alert('氏名を選択してください'); return; }
   if (!work) { alert('作業内容を入力してください'); return; }
 
+  isSubmittingReport = true;
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> 送信中...';
@@ -663,6 +683,7 @@ async function submitReport() {
   } catch(e) {
     alert('送信に失敗しました。URLを確認してください。');
   } finally {
+    isSubmittingReport = false;
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-send"></i> 日報を送信する';
   }
